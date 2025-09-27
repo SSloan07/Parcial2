@@ -68,9 +68,9 @@ int main(int argc, char *argv[]) {
 
     // Crear un hilo para recibir mensajes
     pthread_t hilo_receptor; // Aquí se está creando el identificador del hilo (por cierto , esto es un puntero)
-    pthread_create(&hilo_receptor, NULL, recibir_mensajes, NULL); // Como su nombre lo indica, esta función permite crear un hilo y tiene los siguiente parametros: 1. el identificador del hilo que se va a crear, 2. Un puntero a la estructura con las propiedades que se quiere que se tengan en el hilo (NULL quiere decir que se usarán los valores predeterminados) , 3. La dirección de la función que el nuevo hilo ejecutará , 4. Un argumento que se le pasará a la start_routine, esto puede referenciar a cualquier tipo de datos 
+    pthread_create(&hilo_receptor, NULL, recibir_mensajes, NULL); // Como su nombre lo indica, esta función permite crear un hilo y tiene los siguiente parametros: 1. el identificador del hilo que se va a crear, 2. Un puntero a la estructura con las propiedades que se quiere que se tengan en el hilo (NULL quiere decir que se usarán los valores predeterminados) , 3. La dirección de la función que el nuevo hilo ejecutará , 4. Un argumento que se le pasará a la start_routine, esto puede referenciar a cualquier tipo de datos ( es basicamente el argumento que se le creará a la función de inicio de routina)
 
-    
+
     struct mensaje msg;
     char comando[MAX_TEXTO];
 
@@ -105,7 +105,15 @@ int main(int argc, char *argv[]) {
             printf("%s\n", msg.texto);
 
             // Obtener la cola de la sala
-            key_t key_sala = ftok("/tmp", atoi(sala)); // Esto es un ejemplo, debe ser mejorado
+            // key_t key_sala = ftok("/tmp", atoi(sala)); // Esto es un ejemplo, debe ser mejorado
+            // Generar misma ruta de archivo para sala
+            char ruta_sala[100]; 
+            sprintf(ruta_sala, "/tmp/sala_%s", sala);
+
+            // ftok igual que en el servidor
+            key_t key_sala = ftok(ruta_sala, 'S'); // Este es el puente que hace que tanto la key del server como la del cliente sean iguales
+            cola_sala = msgget(key_sala, 0666);
+
             cola_sala = msgget(key_sala, 0666);
             if (cola_sala == -1) {
                 perror("Error al conectar a la cola de la sala");

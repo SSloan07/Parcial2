@@ -37,7 +37,19 @@ int crear_sala(const char *nombre) {
     }
 
     // Crear una cola de mensajes para la sala
-    key_t key = ftok("/tmp", num_salas + 1); // Generar una clave única
+    // key_t key = ftok("/tmp", num_salas + 1); // Generar una clave única
+    char ruta_sala[100];
+    sprintf(ruta_sala, "/tmp/sala_%s", nombre);
+
+    FILE *fp = fopen(ruta_sala, "a"); // "a" no borra contenido si ya existe
+    if (fp == NULL) {
+        perror("No se pudo crear archivo para sala");
+        return -1;
+    }
+    fclose(fp);
+
+    // Usar ftok con archivo y una letra única (puede ser 'S' por "Sala")
+    key_t key = ftok(ruta_sala, 'S');
     int cola_id = msgget(key, IPC_CREAT | 0666);
     if (cola_id == -1) {
         perror("Error al crear la cola de la sala");
