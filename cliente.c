@@ -10,6 +10,23 @@
 #define MAX_TEXTO 256
 #define MAX_NOMBRE 50
 
+// Códigos de color ANSI para la consola
+#define COLOR_RESET   "\033[0m"
+#define COLOR_ROJO    "\033[31m"
+#define COLOR_VERDE   "\033[32m"
+#define COLOR_AMARILLO "\033[33m"
+#define COLOR_AZUL    "\033[34m"
+#define COLOR_MAGENTA "\033[35m"
+#define COLOR_CYAN    "\033[36m"
+#define COLOR_BLANCO  "\033[37m"
+
+// Colores específicos para nuestra aplicación
+#define COLOR_PROPIO    COLOR_VERDE     // Mensajes propios en verde
+#define COLOR_EXTERNO   COLOR_CYAN      // Mensajes de otros en cyan
+#define COLOR_SISTEMA   COLOR_AMARILLO  // Mensajes del sistema en amarillo
+#define COLOR_PROMPT    COLOR_MAGENTA   // Prompt en magenta
+#define COLOR_ENTRADA   COLOR_AZUL      // Lo que escribo en azul
+
 // Estructura para los mensajes
 struct mensaje {
     long mtype;
@@ -23,32 +40,27 @@ int cola_sala = -1;
 char nombre_usuario[MAX_NOMBRE];
 char sala_actual[MAX_NOMBRE] = "";
 int mtype_cliente = -1;
-int hilo_activo = 0; // Bandera para controlar el hilo receptor
+int hilo_activo = 0;
 
 pthread_mutex_t mutex_stdout = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t mutex_receptor = PTHREAD_MUTEX_INITIALIZER;
 
 void *recibir_mensajes(void *arg) {
     struct mensaje msg;
     int cola_actual = *((int*)arg);
     int mtype_actual = mtype_cliente;
     
-    // printf("[DEBUG] Hilo receptor iniciado - Cola: %d, mtype: %d\n", cola_actual, mtype_actual); Esto es solo un mensaje de debug
-    
     while (hilo_activo) {
         if (cola_actual != -1 && mtype_actual != -1) {
-            // Recibir mensajes específicos para este cliente
             if (msgrcv(cola_actual, &msg, sizeof(struct mensaje) - sizeof(long), mtype_actual, IPC_NOWAIT) == -1) {
-                // No hay mensajes, esperar un poco
                 usleep(100000);
                 continue;
             }
             
-            // Solo mostrar mensajes que no sean del propio usuario
+            // Mostrar mensajes EXTERNOS con color cyan
             if (strcmp(msg.remitente, nombre_usuario) != 0) {
                 pthread_mutex_lock(&mutex_stdout);
-                printf("\n%s: %s\n", msg.remitente, msg.texto);
-                printf("> ");
+                printf("\n" COLOR_EXTERNO "%s: %s" COLOR_RESET "\n", msg.remitente, msg.texto);
+                printf(COLOR_PROMPT "> " COLOR_ENTRADA);
                 fflush(stdout);
                 pthread_mutex_unlock(&mutex_stdout);
             }
@@ -56,7 +68,7 @@ void *recibir_mensajes(void *arg) {
         usleep(100000);
     }
     
-    printf("[DEBUG] Hilo receptor terminado\n");
+    printf(COLOR_SISTEMA "[DEBUG] Hilo receptor terminado" COLOR_RESET "\n");
     return NULL;
 }
 
@@ -64,11 +76,9 @@ void cambiar_sala(const char *nueva_sala) {
     struct mensaje msg;
     char sala[MAX_NOMBRE];
     
-    // Detener el hilo receptor actual
     hilo_activo = 0;
-    usleep(200000); // Dar tiempo al hilo para terminar
+    usleep(200000);
     
-    // Enviar solicitud JOIN al servidor para la nueva sala
     msg.mtype = 1;
     strcpy(msg.remitente, nombre_usuario);
     strcpy(msg.sala, nueva_sala);
@@ -79,21 +89,19 @@ void cambiar_sala(const char *nueva_sala) {
         return;
     }
 
-    // Esperar confirmación del servidor
     if (msgrcv(cola_global, &msg, sizeof(struct mensaje) - sizeof(long), 2, 0) == -1) {
         perror("Error al recibir confirmación");
         return;
     }
 
-    printf("%s\n", msg.texto);
+    // Mensaje del sistema en amarillo
+    printf(COLOR_SISTEMA "%s" COLOR_RESET "\n", msg.texto);
 
-    // Parsear la confirmación para obtener el mtype único
     if (strstr(msg.texto, "Te has unido a la sala:") != NULL) {
         char temp_sala[MAX_NOMBRE];
         if (sscanf(msg.texto, "Te has unido a la sala: %[^|]|%d", temp_sala, &mtype_cliente) == 2) {
             strcpy(sala_actual, temp_sala);
             
-            // Conectar a la cola de la nueva sala
             char ruta_sala[100];
             sprintf(ruta_sala, "/tmp/sala_%s", sala_actual);
             key_t key_sala = ftok(ruta_sala, 'S');
@@ -105,23 +113,31 @@ void cambiar_sala(const char *nueva_sala) {
                 mtype_cliente = -1;
             } else {
                 cola_sala = nueva_cola_sala;
-                printf("[DEBUG] Conectado a la sala '%s' (cola: %d, mtype: %d)\n", 
+                printf(COLOR_SISTEMA "[DEBUG] Conectado a la sala '%s' (cola: %d, mtype: %d)" COLOR_RESET "\n", 
                        sala_actual, cola_sala, mtype_cliente);
                 
-                // Reiniciar el hilo receptor con la nueva sala
                 hilo_activo = 1;
                 pthread_t hilo_receptor;
                 int result = pthread_create(&hilo_receptor, NULL, recibir_mensajes, &cola_sala);
                 if (result != 0) {
-                    printf("Error creando hilo receptor\n");
+                    printf(COLOR_SISTEMA "Error creando hilo receptor" COLOR_RESET "\n");
                     hilo_activo = 0;
                 } else {
-                    printf("Escuchando mensajes en la sala '%s'...\n", sala_actual);
-                    pthread_detach(hilo_receptor); // El hilo se limpiará automáticamente al terminar
+                    printf(COLOR_SISTEMA "Escuchando mensajes en la sala '%s'..." COLOR_RESET "\n", sala_actual);
+                    pthread_detach(hilo_receptor);
                 }
             }
         }
     }
+}
+
+// Función para mostrar la ayuda con colores
+void mostrar_ayuda() {
+    printf(COLOR_SISTEMA "\n=== COMANDOS DISPONIBLES ===" COLOR_RESET "\n");
+    printf(COLOR_AZUL "join <sala>" COLOR_RESET " - Unirse a una sala (General, Deportes)\n");
+    printf(COLOR_AZUL "<mensaje>" COLOR_RESET " - Enviar mensaje a la sala actual\n");
+    printf(COLOR_AZUL "exit" COLOR_RESET " - Salir del chat\n");
+    printf(COLOR_SISTEMA "=============================" COLOR_RESET "\n\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -140,8 +156,13 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    printf("Bienvenido, %s. Salas disponibles: General, Deportes\n", nombre_usuario);
-    printf("Usa 'join <sala>' para unirte a una sala.\n");
+    // Banner de bienvenida con colores
+    printf(COLOR_SISTEMA "\n=== BIENVENIDO AL CHAT ===" COLOR_RESET "\n");
+    printf(COLOR_SISTEMA "Usuario: " COLOR_AZUL "%s" COLOR_RESET "\n", nombre_usuario);
+    printf(COLOR_SISTEMA "Salas disponibles: " COLOR_AZUL "General, Deportes" COLOR_RESET "\n");
+    printf(COLOR_SISTEMA "Usa " COLOR_AZUL "'join <sala>'" COLOR_SISTEMA " para unirte a una sala" COLOR_RESET "\n");
+    printf(COLOR_SISTEMA "Usa " COLOR_AZUL "'help'" COLOR_SISTEMA " para ver los comandos" COLOR_RESET "\n");
+    printf(COLOR_SISTEMA "==========================" COLOR_RESET "\n\n");
 
     struct mensaje msg;
     char comando[MAX_TEXTO];
@@ -149,7 +170,7 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         pthread_mutex_lock(&mutex_stdout);
-        printf("> ");
+        printf(COLOR_PROMPT "> " COLOR_PROPIO);  // Prompt + color para entrada
         fflush(stdout);
         pthread_mutex_unlock(&mutex_stdout);
 
@@ -162,13 +183,18 @@ int main(int argc, char *argv[]) {
         if (strncmp(comando, "join ", 5) == 0) {
             char sala[MAX_NOMBRE];
             sscanf(comando, "join %s", sala);
-            
             cambiar_sala(sala);
             
+        } else if (strncmp(comando, "help", 4) == 0) {
+            mostrar_ayuda();
+            
+        } else if (strncmp(comando, "exit", 4) == 0) {
+            printf(COLOR_SISTEMA "Saliendo del chat..." COLOR_RESET "\n");
+            break;
+            
         } else if (strlen(comando) > 0) {
-            // Enviar mensaje a la sala actual
             if (strlen(sala_actual) == 0) {
-                printf("No estás en ninguna sala. Usa 'join <sala>' para unirte a una.\n");
+                printf(COLOR_SISTEMA "No estás en ninguna sala. Usa 'join <sala>' para unirte a una." COLOR_RESET "\n");
                 continue;
             }
 
@@ -180,17 +206,17 @@ int main(int argc, char *argv[]) {
             if (msgsnd(cola_global, &msg, sizeof(struct mensaje) - sizeof(long), 0) == -1) {
                 perror("Error al enviar mensaje");
             } else {
-                // Mostrar nuestro propio mensaje localmente
+                // Mostrar mensaje PROPIO con color verde (pero NO reescribir)
                 pthread_mutex_lock(&mutex_stdout);
-                printf("Tú: %s\n", comando);
+                // printf(COLOR_PROPIO "\nTú: %s" COLOR_RESET "\n", comando);
                 pthread_mutex_unlock(&mutex_stdout);
             }
         }
     }
 
-    // Limpiar antes de salir
     hilo_activo = 0;
     usleep(300000);
     
+    printf(COLOR_SISTEMA "Chat finalizado. ¡Hasta pronto!" COLOR_RESET "\n");
     return 0;
 }
