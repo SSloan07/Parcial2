@@ -21,11 +21,11 @@
 #define COLOR_BLANCO  "\033[37m"
 
 // Colores específicos para nuestra aplicación
-#define COLOR_PROPIO    COLOR_VERDE     // Mensajes propios en verde
-#define COLOR_EXTERNO   COLOR_CYAN      // Mensajes de otros en cyan
+#define COLOR_EXTERNO   COLOR_ROJO     // Mensajes de otros en rojo
 #define COLOR_SISTEMA   COLOR_AMARILLO  // Mensajes del sistema en amarillo
 #define COLOR_PROMPT    COLOR_MAGENTA   // Prompt en magenta
-#define COLOR_ENTRADA   COLOR_AZUL      // Lo que escribo en azul
+#define COLOR_ENTRADA   COLOR_VERDE      // Lo que escribo en verde
+#define COLOR_LOGO      COLOR_CYAN      // Color del logo
 
 // Estructura para los mensajes
 struct mensaje {
@@ -43,6 +43,56 @@ int mtype_cliente = -1;
 int hilo_activo = 0;
 
 pthread_mutex_t mutex_stdout = PTHREAD_MUTEX_INITIALIZER;
+
+// Función para mostrar animación de bienvenida
+void mostrar_animacion_bienvenida() {
+    printf("\n");
+    printf(COLOR_LOGO "╔══════════════════════════════════════════════╗\n");
+    printf(COLOR_LOGO "║" COLOR_RESET "                                              " COLOR_LOGO "║\n");
+    printf(COLOR_LOGO "║" COLOR_RESET "          🚀 INICIANDO CHAT  🚀       " COLOR_LOGO "║\n");
+    printf(COLOR_LOGO "║" COLOR_RESET "                                              " COLOR_LOGO "║\n");
+    printf(COLOR_LOGO "╠══════════════════════════════════════════════╣\n");
+    printf(COLOR_LOGO "║" COLOR_RESET "                                              " COLOR_LOGO "║\n");
+    
+    // Animación de carga
+    const char *frames[] = {"[■□□□□□□□□□]", "[■■□□□□□□□□]", "[■■■□□□□□□□]", 
+                           "[■■■■□□□□□□]", "[■■■■■□□□□□]", "[■■■■■■□□□□]",
+                           "[■■■■■■■□□□]", "[■■■■■■■■□□]", "[■■■■■■■■■□]", 
+                           "[■■■■■■■■■■]"};
+    
+    for (int i = 0; i < 10; i++) {
+        printf(COLOR_LOGO "║" COLOR_RESET "          Cargando sistema %s         " COLOR_LOGO "║\r", frames[i]);
+        fflush(stdout);
+        usleep(200000); // 200ms entre frames
+    }
+    
+    printf("\n");
+    printf(COLOR_LOGO "║" COLOR_RESET "                                              " COLOR_LOGO "║\n");
+    printf(COLOR_LOGO "║" COLOR_RESET "           ✅ SISTEMA LISTO ✅               " COLOR_LOGO "║\n");
+    printf(COLOR_LOGO "║" COLOR_RESET "                                              " COLOR_LOGO "║\n");
+    printf(COLOR_LOGO "╚══════════════════════════════════════════════╝\n");
+    printf(COLOR_RESET "\n");
+}
+
+// Función para mostrar logo del chat
+
+// Función para mostrar logo de Habla - Versión Artística
+void mostrar_logo_chat() {
+    printf("\n");
+    printf(COLOR_LOGO "  ██████████████████████████████████████████████████████████████\n");
+    
+    // H A B L A en estilo block grande
+    printf(COLOR_LOGO "  █" COLOR_CYAN "  ██╗  ██╗ █████╗ ██████╗ ██╗      █████╗       " COLOR_LOGO "█\n");
+    printf(COLOR_LOGO "  █" COLOR_CYAN "  ██║  ██║██╔══██╗██╔══██╗██║     ██╔══██╗      " COLOR_LOGO "█\n");
+    printf(COLOR_LOGO "  █" COLOR_CYAN "  ███████║███████║██████╔╝██║     ███████║      " COLOR_LOGO "█\n");
+    printf(COLOR_LOGO "  █" COLOR_CYAN "  ██╔══██║██╔══██║██╔══██╗██║     ██╔══██║      " COLOR_LOGO "█\n");
+    printf(COLOR_LOGO "  █" COLOR_CYAN "  ██║  ██║██║  ██║██████╔╝███████╗██║  ██║      " COLOR_LOGO "█\n");
+    printf(COLOR_LOGO "  █" COLOR_CYAN "  ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝  ╚═╝      " COLOR_LOGO "█\n");
+    
+    printf(COLOR_LOGO "  █" COLOR_VERDE "                 💬 Discord tiembla 💬               " COLOR_LOGO "█\n");
+    printf(COLOR_LOGO "  ██████████████████████████████████████████████████████████████\n");
+    printf(COLOR_RESET "\n");
+}
 
 void *recibir_mensajes(void *arg) {
     struct mensaje msg;
@@ -68,7 +118,6 @@ void *recibir_mensajes(void *arg) {
         usleep(100000);
     }
     
-    printf(COLOR_SISTEMA "[DEBUG] Hilo receptor terminado" COLOR_RESET "\n");
     return NULL;
 }
 
@@ -113,8 +162,7 @@ void cambiar_sala(const char *nueva_sala) {
                 mtype_cliente = -1;
             } else {
                 cola_sala = nueva_cola_sala;
-                printf(COLOR_SISTEMA "[DEBUG] Conectado a la sala '%s' (cola: %d, mtype: %d)" COLOR_RESET "\n", 
-                       sala_actual, cola_sala, mtype_cliente);
+                printf(COLOR_SISTEMA "Conectado a la sala '%s'" COLOR_RESET "\n", sala_actual);
                 
                 hilo_activo = 1;
                 pthread_t hilo_receptor;
@@ -123,7 +171,7 @@ void cambiar_sala(const char *nueva_sala) {
                     printf(COLOR_SISTEMA "Error creando hilo receptor" COLOR_RESET "\n");
                     hilo_activo = 0;
                 } else {
-                    printf(COLOR_SISTEMA "Escuchando mensajes en la sala '%s'..." COLOR_RESET "\n", sala_actual);
+                    printf(COLOR_SISTEMA "Escuchando mensajes..." COLOR_RESET "\n");
                     pthread_detach(hilo_receptor);
                 }
             }
@@ -133,11 +181,15 @@ void cambiar_sala(const char *nueva_sala) {
 
 // Función para mostrar la ayuda con colores
 void mostrar_ayuda() {
-    printf(COLOR_SISTEMA "\n=== COMANDOS DISPONIBLES ===" COLOR_RESET "\n");
-    printf(COLOR_AZUL "join <sala>" COLOR_RESET " - Unirse a una sala (General, Deportes)\n");
-    printf(COLOR_AZUL "<mensaje>" COLOR_RESET " - Enviar mensaje a la sala actual\n");
-    printf(COLOR_AZUL "exit" COLOR_RESET " - Salir del chat\n");
-    printf(COLOR_SISTEMA "=============================" COLOR_RESET "\n\n");
+    printf(COLOR_SISTEMA "\n╔══════════════════════════════════════════╗\n");
+    printf(COLOR_SISTEMA "║" COLOR_AZUL "           COMANDOS DISPONIBLES           " COLOR_SISTEMA "║\n");
+    printf(COLOR_SISTEMA "╠══════════════════════════════════════════╣\n");
+    printf(COLOR_SISTEMA "║" COLOR_RESET " join <sala> - Unirse a una sala         " COLOR_SISTEMA "║\n");
+    printf(COLOR_SISTEMA "║" COLOR_RESET "              (General, Deportes)        " COLOR_SISTEMA "║\n");
+    printf(COLOR_SISTEMA "║" COLOR_RESET " <mensaje>  - Enviar mensaje             " COLOR_SISTEMA "║\n");
+    printf(COLOR_SISTEMA "║" COLOR_RESET " exit       - Salir del chat             " COLOR_SISTEMA "║\n");
+    printf(COLOR_SISTEMA "║" COLOR_RESET " help       - Mostrar esta ayuda         " COLOR_SISTEMA "║\n");
+    printf(COLOR_SISTEMA "╚══════════════════════════════════════════╝" COLOR_RESET "\n\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -148,6 +200,14 @@ int main(int argc, char *argv[]) {
 
     strcpy(nombre_usuario, argv[1]);
 
+    // Mostrar animación de inicio
+    mostrar_animacion_bienvenida();
+    usleep(500000); // Pausa después de la animación
+    
+    // Mostrar logo del chat
+    mostrar_logo_chat();
+    usleep(300000); // Pausa después del logo
+
     // Conectarse a la cola global
     key_t key_global = ftok("/tmp", 'A');
     cola_global = msgget(key_global, 0666);
@@ -156,13 +216,14 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    // Banner de bienvenida con colores
-    printf(COLOR_SISTEMA "\n=== BIENVENIDO AL CHAT ===" COLOR_RESET "\n");
-    printf(COLOR_SISTEMA "Usuario: " COLOR_AZUL "%s" COLOR_RESET "\n", nombre_usuario);
-    printf(COLOR_SISTEMA "Salas disponibles: " COLOR_AZUL "General, Deportes" COLOR_RESET "\n");
-    printf(COLOR_SISTEMA "Usa " COLOR_AZUL "'join <sala>'" COLOR_SISTEMA " para unirte a una sala" COLOR_RESET "\n");
-    printf(COLOR_SISTEMA "Usa " COLOR_AZUL "'help'" COLOR_SISTEMA " para ver los comandos" COLOR_RESET "\n");
-    printf(COLOR_SISTEMA "==========================" COLOR_RESET "\n\n");
+    // Banner de información del usuario
+    printf(COLOR_SISTEMA "╔══════════════════════════════════════════╗\n");
+    printf(COLOR_SISTEMA "║" COLOR_RESET "           INFORMACIÓN DEL USUARIO         " COLOR_SISTEMA "║\n");
+    printf(COLOR_SISTEMA "╠══════════════════════════════════════════╣\n");
+    printf(COLOR_SISTEMA "║" COLOR_RESET " Usuario: " COLOR_AZUL "%-30s" COLOR_RESET " " COLOR_SISTEMA "║\n", nombre_usuario);
+    printf(COLOR_SISTEMA "║" COLOR_RESET " Salas:   " COLOR_AZUL "General, Deportes           " COLOR_RESET " " COLOR_SISTEMA "║\n");
+    printf(COLOR_SISTEMA "║" COLOR_RESET " Comando: " COLOR_AZUL "join <sala> para comenzar   " COLOR_RESET " " COLOR_SISTEMA "║\n");
+    printf(COLOR_SISTEMA "╚══════════════════════════════════════════╝" COLOR_RESET "\n\n");
 
     struct mensaje msg;
     char comando[MAX_TEXTO];
@@ -170,7 +231,7 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         pthread_mutex_lock(&mutex_stdout);
-        printf(COLOR_PROMPT "> " COLOR_PROPIO);  // Prompt + color para entrada
+        printf(COLOR_PROMPT "> " COLOR_ENTRADA);  // Prompt + color para entrada
         fflush(stdout);
         pthread_mutex_unlock(&mutex_stdout);
 
@@ -189,12 +250,12 @@ int main(int argc, char *argv[]) {
             mostrar_ayuda();
             
         } else if (strncmp(comando, "exit", 4) == 0) {
-            printf(COLOR_SISTEMA "Saliendo del chat..." COLOR_RESET "\n");
+            printf(COLOR_SISTEMA "\n¡Hasta pronto, %s! 👋" COLOR_RESET "\n", nombre_usuario);
             break;
             
         } else if (strlen(comando) > 0) {
             if (strlen(sala_actual) == 0) {
-                printf(COLOR_SISTEMA "No estás en ninguna sala. Usa 'join <sala>' para unirte a una." COLOR_RESET "\n");
+                printf(COLOR_SISTEMA "Primero únete a una sala con 'join <sala>'" COLOR_RESET "\n");
                 continue;
             }
 
@@ -205,11 +266,6 @@ int main(int argc, char *argv[]) {
 
             if (msgsnd(cola_global, &msg, sizeof(struct mensaje) - sizeof(long), 0) == -1) {
                 perror("Error al enviar mensaje");
-            } else {
-                // Mostrar mensaje PROPIO con color verde (pero NO reescribir)
-                pthread_mutex_lock(&mutex_stdout);
-                // printf(COLOR_PROPIO "\nTú: %s" COLOR_RESET "\n", comando);
-                pthread_mutex_unlock(&mutex_stdout);
             }
         }
     }
@@ -217,6 +273,10 @@ int main(int argc, char *argv[]) {
     hilo_activo = 0;
     usleep(300000);
     
-    printf(COLOR_SISTEMA "Chat finalizado. ¡Hasta pronto!" COLOR_RESET "\n");
+    // Mensaje de despedida con estilo
+    printf(COLOR_SISTEMA "\n╔══════════════════════════════════════════╗\n");
+    printf(COLOR_SISTEMA "║" COLOR_RESET "           CHAT FINALIZADO ✅             " COLOR_SISTEMA "║\n");
+    printf(COLOR_SISTEMA "╚══════════════════════════════════════════╝" COLOR_RESET "\n");
+    
     return 0;
 }
