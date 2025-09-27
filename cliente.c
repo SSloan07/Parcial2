@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <pthread.h>
 
+
 #define MAX_TEXTO 256
 #define MAX_NOMBRE 50
 
@@ -23,21 +24,44 @@ int cola_sala = -1;
 char nombre_usuario[MAX_NOMBRE];
 char sala_actual[MAX_NOMBRE] = "";
 
+
+pthread_mutex_t mutex_stdout = PTHREAD_MUTEX_INITIALIZER; // Esta es la declaración de un Mutex para trabajar con la sincronización de los hilos (Así no se pierden ni se solapan)
+
+
+
 // Función para el hilo que recibe mensajes
 void *recibir_mensajes(void *arg) {
     struct mensaje msg;
 
     while (1) {
         if (cola_sala != -1) {
+            
             // Recibir mensajes de la cola de la sala
             if (msgrcv(cola_sala, &msg, sizeof(struct mensaje) - sizeof(long), 0, 0) == -1) { // Esta función lee un mensaje en una cola de mensajes
                 perror("Error al recibir mensaje de la sala");
+                usleep(100000); 
                 continue;
             }
+            int mtype_cliente = -1;
+            sscanf(msg.texto, "Te has unido a la sala: %[^|]|%d", sala_actual, &mtype_cliente);
 
+
+            if (strncmp(msg.texto, "Te has unido a la sala:", 23) == 0) {
+                int mtype_cliente = -1;
+                sscanf(msg.texto, "Te has unido a la sala: %[^|]|%d", sala_actual, &mtype_cliente);
+
+                pthread_mutex_lock(&mutex_stdout);
+                printf("%s\n", msg.texto);
+                fflush(stdout);
+                pthread_mutex_unlock(&mutex_stdout);
+            } 
             // Mostrar el mensaje si no es del propio usuario
-            if (strcmp(msg.remitente, nombre_usuario) != 0) { // Permite comparar caracter por caracter de dos cadenas, mirar si son iguales menor o mayor . En este caso se mira si son diferentes
+
+            else if (strcmp(msg.remitente, nombre_usuario) != 0) { // Permite comparar caracter por caracter de dos cadenas, mirar si son iguales menor o mayor . En este caso se mira si son diferentes
+                pthread_mutex_lock(&mutex_stdout);
                 printf("%s: %s\n", msg.remitente, msg.texto);
+                fflush(stdout);
+                pthread_mutex_unlock(&mutex_stdout);
             }
         }
         usleep(100000); // Pequeña pausa para no consumir demasiado CPU
@@ -75,10 +99,21 @@ int main(int argc, char *argv[]) {
     char comando[MAX_TEXTO];
 
     while (1) {
+        // DESDE ACÁ HAY UN CAMBIO IMPORTANTE
+        pthread_mutex_lock(&mutex_stdout);
         printf("> ");
-        fgets(comando, MAX_TEXTO, stdin); // fgets es una función para leer archivos texto desde el teclado ( tiene 3 parametros: 1. char *str  que es un puntero a un array de chars que es donde se guarda la info leida, 2. numero maximo de caracteres a leer, 3. File *stream es el flujoj de entrada donde se leerán los datos (stdin indica por ejemplo que se van a leer por teclado)
+        fflush(stdout);
+        pthread_mutex_unlock(&mutex_stdout);
+
+        if (!fgets(comando, MAX_TEXTO, stdin)) { // fgets es una función para leer archivos texto desde el teclado ( tiene 3 parametros: 1. char *str  que es un puntero a un array de chars que es donde se guarda la info leida, 2. numero maximo de caracteres a leer, 3. File *stream es el flujoj de entrada donde se leerán los datos (stdin indica por ejemplo que se van a leer por teclado)
+            // EOF o error
+            break; 
+        }
+
         comando[strcspn(comando, "\n")] = '\0'; // Eliminar el salto de línea
         // Esta función strcspn tiene dos parametros (1. la cadena a revisar, 2. los caracteres prohibidos) devuelve la posición de un caracter prohibido encontrado. 
+
+        // HASTA ACÁ HAY UN CAMBIO IMPORTANTE 
 
         if (strncmp(comando, "join ", 5) == 0) { // Permite comparar caracter por caracter de dos cadenas, mirar si son iguales menor o mayor . En este caso se mira si son iguales
             // Comando para unirse a una sala
@@ -114,9 +149,9 @@ int main(int argc, char *argv[]) {
             key_t key_sala = ftok(ruta_sala, 'S'); // Este es el puente que hace que tanto la key del server como la del cliente sean iguales
             cola_sala = msgget(key_sala, 0666);
 
-            cola_sala = msgget(key_sala, 0666);
             if (cola_sala == -1) {
                 perror("Error al conectar a la cola de la sala");
+                cola_sala = -1; 
                 continue;
             }
 
@@ -133,7 +168,7 @@ int main(int argc, char *argv[]) {
             strcpy(msg.sala, sala_actual);
             strcpy(msg.texto, comando);
 
-            if (msgsnd(cola_sala, &msg, sizeof(struct mensaje) - sizeof(long), 0) == -1) {
+            if (msgsnd(cola_global, &msg, sizeof(struct mensaje) - sizeof(long), 0) == -1) {
                 perror("Error al enviar mensaje");
                 continue;
             }
