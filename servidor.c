@@ -192,7 +192,123 @@ int main() {
                 enviar_a_todos_en_sala(indice_sala, &msg);
             }
         }
+
+        else if (msg.mtype == 4) { // LIST
+            printf("Solicitud LIST de %s\n", msg.remitente);
+        
+            struct mensaje respuesta;
+            respuesta.mtype = 2; // Usamos mismo canal de confirmaciones
+            strcpy(respuesta.remitente, "servidor");
+            strcpy(respuesta.sala, "");
+        
+            if (num_salas == 0) {
+                strcpy(respuesta.texto, "No hay salas creadas en el momento.\nPuedes usar join <sala> para crear una sala");
+            } else {
+                char buffer[MAX_TEXTO] = "";
+                for (int i = 0; i < num_salas; i++) {
+                    char linea[100];
+                    sprintf(linea, "- %s (%d usuarios)\n", salas[i].nombre, salas[i].num_usuarios);
+                    if (strlen(buffer) + strlen(linea) < MAX_TEXTO) {
+                        strcat(buffer, linea);
+                    }
+                }
+                strcpy(respuesta.texto, buffer);
+            }
+        
+            if (msgsnd(cola_global, &respuesta, sizeof(struct mensaje) - sizeof(long), 0) == -1) {
+                perror("Error al enviar lista de salas");
+            } else {
+                printf("Lista de salas enviada a %s\n", msg.remitente);
+            }
+        }
+
+        else if (msg.mtype == 5) { // /users
+            printf("Solicitud USERS de %s (sala solicitada: %s)\n", msg.remitente, msg.sala);
+        
+            struct mensaje respuesta;
+            respuesta.mtype = 2; // canal de confirmaciones
+            strcpy(respuesta.remitente, "servidor");
+            respuesta.sala[0] = '\0';
+        
+            int indice_sala = buscar_sala(msg.sala);
+            if (indice_sala == -1) {
+                // Sala no existe
+                strncpy(respuesta.texto, "Sala no encontrada.", MAX_TEXTO - 1);
+                respuesta.texto[MAX_TEXTO - 1] = '\0';
+            } else {
+                int n = salas[indice_sala].num_usuarios;
+                if (n <= 1) {
+                    // Si solo está el solicitante (o nobody), mensaje claro
+                    strncpy(respuesta.texto, "Solo estás tú en la sala.", MAX_TEXTO - 1);
+                    respuesta.texto[MAX_TEXTO - 1] = '\0';
+                } else {
+                    char buffer[MAX_TEXTO];
+                    buffer[0] = '\0';
+        
+                    for (int i = 0; i < n; i++) {
+        
+                        char linea[100];
+                        if(strcmp(salas[indice_sala].usuarios[i], msg.remitente) == 0)
+                        {
+                            snprintf(linea, sizeof(linea), "- %s (Tu)\n", salas[indice_sala].usuarios[i]);
+                        } else
+                        {
+                            snprintf(linea, sizeof(linea), "- %s\n", salas[indice_sala].usuarios[i]);
+                        }
+                        
+
+                        // comprobar espacio antes de concatenar
+                        if (strlen(buffer) + strlen(linea) < sizeof(buffer)) {
+                            strcat(buffer, linea);
+                        } else {
+                            // si no cabe más, corta y sal del bucle
+                            strncat(buffer, "\n... (más usuarios)\n", sizeof(buffer) - strlen(buffer) - 1);
+                            break;
+                        }
+                    }
+        
+                    if (buffer[0] == '\0') {
+                        strncpy(respuesta.texto, "No hay otros usuarios en la sala.", MAX_TEXTO - 1);
+                        respuesta.texto[MAX_TEXTO - 1] = '\0';
+                    } else {
+                        strncpy(respuesta.texto, buffer, MAX_TEXTO - 1);
+                        respuesta.texto[MAX_TEXTO - 1] = '\0';
+                    }
+                }
+            }
+        
+            if (msgsnd(cola_global, &respuesta, sizeof(struct mensaje) - sizeof(long), 0) == -1) {
+                perror("Error al enviar lista de usuarios");
+            } else {
+                printf("Lista de usuarios enviada a %s\n", msg.remitente);
+            }
+        }
+
+        else if (msg.mtype == 6) { // QUIT
+            printf("Solicitud Leave de %s en sala %s\n", msg.remitente, msg.sala);
+        
+            int indice_sala = buscar_sala(msg.sala);
+            if (indice_sala != -1) {
+                remover_usuario_de_salas(msg.remitente);
+        
+                // Confirmación opcional al cliente
+                struct mensaje respuesta;
+                respuesta.mtype = 2;
+                strcpy(respuesta.remitente, "servidor");
+                sprintf(respuesta.texto, "Has salido de la sala: %s", msg.sala);
+                strcpy(respuesta.sala, "");
+        
+                if (msgsnd(cola_global, &respuesta, sizeof(struct mensaje) - sizeof(long), 0) == -1) {
+                    perror("Error al enviar confirmación de salida");
+                } else {
+                    printf("Confirmación de QUIT enviada a %s\n", msg.remitente);
+                }
+            }
+        }
+
     }
+
+    
 
     return 0;
 }

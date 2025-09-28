@@ -189,7 +189,72 @@ void mostrar_ayuda() {
     printf(COLOR_SISTEMA "║" COLOR_RESET " <mensaje>  - Enviar mensaje             " COLOR_SISTEMA "║\n");
     printf(COLOR_SISTEMA "║" COLOR_RESET " exit       - Salir del chat             " COLOR_SISTEMA "║\n");
     printf(COLOR_SISTEMA "║" COLOR_RESET " help       - Mostrar esta ayuda         " COLOR_SISTEMA "║\n");
+    printf(COLOR_SISTEMA "║" COLOR_RESET " /list       - Listar salas         " COLOR_SISTEMA "║\n");
+    printf(COLOR_SISTEMA "║" COLOR_RESET " /quit       - Salir de una sala         " COLOR_SISTEMA "║\n");
+    printf(COLOR_SISTEMA "║" COLOR_RESET " /users       - Listar usuarios en la sala        " COLOR_SISTEMA "║\n");
     printf(COLOR_SISTEMA "╚══════════════════════════════════════════╝" COLOR_RESET "\n\n");
+}
+
+void mostrar_salas() {
+    struct mensaje msg;
+
+    msg.mtype = 4; // LIST
+    strcpy(msg.remitente, nombre_usuario);
+    strcpy(msg.texto, "");
+    strcpy(msg.sala, sala_actual);
+
+    if (msgsnd(cola_global, &msg, sizeof(struct mensaje) - sizeof(long), 0) == -1) {
+        perror("Error al enviar petición de lista");
+    }
+
+    if (msgrcv(cola_global, &msg, sizeof(struct mensaje) - sizeof(long), 2, 0) == -1) {
+        perror("Error al recibir lista");
+    } else {
+        printf(COLOR_SISTEMA "Salas disponibles:\n%s" COLOR_RESET "\n", msg.texto);
+    }
+}
+
+void mostrar_usuarios() {
+    struct mensaje msg;
+
+    msg.mtype = 5; // Users
+    strcpy(msg.remitente, nombre_usuario);
+    strcpy(msg.texto, "");
+    strcpy(msg.sala, sala_actual);
+
+
+    if (msgsnd(cola_global, &msg, sizeof(struct mensaje) - sizeof(long), 0) == -1) {
+        perror("Error al enviar petición de lista");
+    }
+
+    if (msgrcv(cola_global, &msg, sizeof(struct mensaje) - sizeof(long), 2, 0) == -1) {
+        perror("Error al recibir lista");
+    } else {
+        printf(COLOR_SISTEMA "Usuarios en la sala:\n%s" COLOR_RESET "\n", msg.texto);
+    }
+}
+
+void salir_sala() {
+    struct mensaje msg;
+
+    msg.mtype = 6; // QUIT
+    strcpy(msg.remitente, nombre_usuario);
+    strcpy(msg.sala, sala_actual);
+    strcpy(msg.texto, "");
+
+    // Avisar al servidor
+    if (msgsnd(cola_global, &msg, sizeof(struct mensaje) - sizeof(long), 0) == -1) {
+        perror("Error al enviar petición de salir");
+    }
+
+    // Resetear estado local
+    sala_actual[0] = '\0';
+    cola_sala = -1;
+    mtype_cliente = -1;
+    hilo_activo = 0;
+
+    printf(COLOR_SISTEMA "Has salido de la sala. Ahora no estás en ninguna sala.\n" COLOR_RESET);
+
 }
 
 int main(int argc, char *argv[]) {
@@ -248,6 +313,25 @@ int main(int argc, char *argv[]) {
             
         } else if (strncmp(comando, "help", 4) == 0) {
             mostrar_ayuda();
+
+        } else if (strncmp(comando, "/list", 5) == 0) {
+            mostrar_salas();
+        
+        } else if (strncmp(comando, "/users", 6) == 0) {
+
+            if (strlen(sala_actual) == 0) {
+                printf(COLOR_SISTEMA "Para listar usuarios debes de estar en una sala" COLOR_RESET "\n");
+            } else {
+                mostrar_usuarios();
+            }
+            
+        } else if (strncmp(comando, "/leave", 5) == 0) {
+
+            if (strlen(sala_actual) == 0) {
+                printf(COLOR_SISTEMA "No estas en ninguna sala" COLOR_RESET "\n");
+            } else {
+                salir_sala();
+            }
             
         } else if (strncmp(comando, "exit", 4) == 0) {
             printf(COLOR_SISTEMA "\n¡Hasta pronto, %s! 👋" COLOR_RESET "\n", nombre_usuario);
